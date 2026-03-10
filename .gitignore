@@ -1,0 +1,37 @@
+# Binários compilados
+scraper
+scraper.exe
+*.exe
+*.out
+
+# Diretório de saída gerado pelo scraper
+data/
+
+# Módulos Go (cache local)
+vendor/
+
+# Cobertura e perfis de teste
+*.test
+*.prof
+coverage.out
+coverage.html
+
+# Variáveis de ambiente
+.env
+.env.*
+!.env.example
+
+# IDEs e editores
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Sistema operacional
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
