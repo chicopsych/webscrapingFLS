@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>webscrapingFLS</title>
+  <style>
+    body { font-family: Segoe UI, Arial, sans-serif; max-width: 860px; margin: 40px auto; padding: 0 16px; }
+    h1 { margin-bottom: 6px; }
+    .muted { color: #555; margin-top: 0; }
+    .box { border: 1px solid #ddd; border-radius: 8px; padding: 16px; background: #fafafa; }
+    label { display: block; margin-bottom: 8px; font-weight: 600; }
+    input[type="url"] { width: 100%; padding: 10px; font-size: 14px; border-radius: 6px; border: 1px solid #bbb; box-sizing: border-box; }
+    button { margin-top: 12px; background: #1463ff; color: white; border: 0; border-radius: 6px; padding: 10px 14px; cursor: pointer; }
+    .ok { margin-top: 14px; color: #0c6b2f; font-weight: 600; }
+    .err { margin-top: 14px; color: #9a1c1c; font-weight: 600; }
+    code { background: #f2f2f2; padding: 2px 4px; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <h1>webscrapingFLS</h1>
+  <p class="muted">Interface GUI local para extração de páginas.</p>
+  <div class="box">
+    <form method="post" action="/scrape">
+      <label for="url">URL alvo</label>
+      <input id="url" name="url" type="url" placeholder="https://example.com" required />
+      <button type="submit">Extrair e salvar</button>
+    </form>
+    {{if .Message}}<div class="ok">{{.Message}}</div>{{end}}
+    {{if .Error}}<div class="err">{{.Error}}</div>{{end}}
+    <p class="muted">Saída: <code>{{.OutDir}}/&lt;titulo_da_pagina&gt;.md</code></p>
+  </div>
+</body>
+</html>
