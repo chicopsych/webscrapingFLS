@@ -5,7 +5,10 @@ Web scraper em Go para extração de conteúdo de páginas web, com saída em Ma
 ## Funcionalidades
 
 - Extração de título e conteúdo de qualquer URL via linha de comando
+- Interface GUI local (web) iniciada com `-gui` ou sem argumentos
 - Saída em arquivo `.md` com YAML Front Matter (título, URL, timestamp, tags)
+- Nome de arquivo baseado no título da página com sanitização cross-platform
+- Proteção contra sobrescrita com sufixo incremental automático (`_1`, `_2`, ...)
 - Logging estruturado em JSON com suporte a nível `debug` (via `log/slog`)
 - Tratamento de erros de rede categorizados (rate limit, acesso negado, seletor não encontrado, etc.)
 - Requisições assíncronas com limite de paralelismo e delay entre chamadas (via Colly)
@@ -26,22 +29,33 @@ go mod download
 
 ```bash
 # Compilar
-go build -o scraper ./cmd/scraper
+go build -o webscrapingfls ./cmd/scraper
 
-# Executar
-./scraper -url https://example.com
+# Modo CLI
+./webscrapingfls -url https://example.com
 
 # Com opções adicionais
-./scraper -url https://example.com -out ./resultados -debug
+./webscrapingfls -url https://example.com -out ./resultados -debug
+
+# Modo GUI local (abre no navegador)
+./webscrapingfls -gui
+```
+
+No Windows (PowerShell), o equivalente é:
+
+```powershell
+.\webscrapingfls.exe -url https://example.com -out .\data
+.\webscrapingfls.exe -gui
 ```
 
 ### Flags disponíveis
 
 | Flag      | Padrão  | Descrição                                    |
 |-----------|---------|----------------------------------------------|
-| `-url`    | (vazio) | **Obrigatória.** URL alvo para o scraping    |
+| `-url`    | (vazio) | URL alvo para o scraping (modo CLI)          |
 | `-out`    | `data`  | Diretório de saída para os arquivos `.md`    |
 | `-debug`  | `false` | Habilita log em nível debug                  |
+| `-gui`    | `false` | Inicia interface GUI local (web)             |
 
 ## Estrutura do Projeto
 
@@ -49,20 +63,33 @@ go build -o scraper ./cmd/scraper
 webscrapingFLS/
 ├── cmd/
 │   └── scraper/
-│       └── main.go          # Entrypoint da aplicação (flags, orquestração)
+│       └── main.go              # Composition root (flags + escolha CLI/GUI)
 ├── internal/
+│   ├── cli/
+│   │   └── run.go               # Adaptador de interface CLI
 │   ├── crawler/
-│   │   └── crawler.go       # Lógica de scraping com Colly (async, limites, parsing)
+│   │   ├── crawler.go           # Lógica de scraping com Colly
+│   │   └── events.go            # Eventos assíncronos de scraping
 │   ├── errors/
-│   │   └── errors.go        # Erros tipados e categorizados do domínio
+│   │   └── errors.go            # Sentinel errors do domínio
+│   ├── filesystem/
+│   │   ├── naming.go            # Sanitização segura de nomes de arquivos
+│   │   ├── uniqueness.go        # Geração de nome único sem sobrescrita
+│   │   └── windows_reserved.go  # Nomes reservados do Windows/NTFS
+│   ├── gui/
+│   │   ├── run.go               # Adaptador de interface GUI (HTTP local)
+│   │   └── templates/
+│   │       └── index.html       # Template HTML embutido via go:embed
 │   ├── logger/
-│   │   └── logger.go        # Inicialização do logger estruturado (slog/JSON)
+│   │   └── logger.go            # Logger estruturado (slog/JSON)
 │   ├── models/
-│   │   └── models.go        # Struct PageData (dados extraídos e metadados)
+│   │   └── models.go            # DTO PageData (conteúdo + metadados)
+│   ├── service/
+│   │   └── scrape/
+│   │       └── service.go       # Use case ExecuteScrape (orquestrador)
 │   └── writer/
-│       └── writer.go        # Serialização para Markdown + YAML Front Matter
+│       └── writer.go            # Persistência Markdown + Front Matter YAML
 ├── data/                    # Diretório padrão de saída dos arquivos .md gerados
-├── main.go                  # Arquivo raiz (comentário de versão/projeto)
 ├── go.mod
 ├── go.sum
 └── README.md
@@ -70,32 +97,26 @@ webscrapingFLS/
 
 ## Arquitetura e Fluxo de Dados
 
-O projeto segue uma arquitetura modular onde cada pacote interno tem responsabilidade única. O fluxo de dados é linear e unidirecional:
+O projeto segue Separation of Concerns e princípios de Clean Architecture: o `main` apenas compõe dependências e escolhe a interface (CLI/GUI), enquanto a regra de negócio fica concentrada no caso de uso `ExecuteScrape`.
+
+Fluxo atual:
 
 ```
-┌──────────────────────────────────────────────────────────────────────┐
-│                        FLUXO DE DADOS                              │
-│                                                                    │
-│  ┌─────────┐     ┌───────────┐     ┌───────────┐     ┌─────────┐  │
-│  │  main   │────▶│  crawler   │────▶│ PageData  │────▶│ writer  │  │
-│  │ (flags) │     │ (Colly)    │     │ (models)  │     │ (.md)   │  │
-│  └─────────┘     └───────────┘     └───────────┘     └─────────┘  │
-│       │                │                                   │       │
-│       │           ┌────┴────┐                              │       │
-│       ▼           │ events  │                              ▼       │
-│  ┌─────────┐      │ (chan)  │                        ┌──────────┐  │
-│  │ logger  │◀─────┴────────▶│                        │ arquivo  │  │
-│  │ (slog)  │                                         │   .md    │  │
-│  └─────────┘                                         └──────────┘  │
-└──────────────────────────────────────────────────────────────────────┘
+main (flags/logger)
+	-> cli.Run() ou gui.Run()
+	-> service/scrape.ExecuteScrape()
+	-> crawler.Scrape()
+	-> filesystem.SanitizeFileNameFromTitle()
+	-> filesystem.UniqueFileName()
+	-> writer.SaveMarkdown()
+	-> data/<titulo_sanitizado>.md
 ```
 
-1. **`main.go`** — Faz parsing dos flags CLI (`-url`, `-out`, `-debug`) e orquestra o pipeline.
-2. **`logger`** — Inicializa o `slog` com handler JSON. Todos os módulos recebem o logger por injeção de dependência.
-3. **`crawler`** — Usa o Colly para fazer a requisição HTTP, parsear o DOM e popular a struct `PageData`. Emite eventos via channel para feedback de progresso.
-4. **`models`** — Define `PageData`, o contrato de dados central. Não contém lógica, apenas a estrutura.
-5. **`writer`** — Serializa `PageData` em YAML Front Matter + corpo Markdown e grava no disco.
-6. **`errors`** — Define erros sentinela do domínio, usados por todos os módulos para categorização.
+1. **`cmd/scraper/main.go`** — Composition root: processa flags e delega.
+2. **`internal/cli` e `internal/gui`** — Camada de apresentação (input/output).
+3. **`internal/service/scrape`** — Camada de aplicação (orquestra regra de negócio).
+4. **`internal/crawler` e `internal/writer`** — Infraestrutura de scraping e persistência.
+5. **`internal/filesystem`** — Segurança e integridade de nomes (NTFS/EXT4 + anti-path traversal).
 
 ## Exemplo de Saída
 
@@ -111,6 +132,13 @@ timestamp: 2026-03-10T10:56:54-03:00
 Example Domain
 This domain is for use in documentation examples...
 ```
+
+### Política de nome de arquivo
+
+- Nome base é derivado de `title` com sanitização de caracteres inválidos.
+- O sistema impede path traversal removendo separadores de caminho e forçando basename.
+- Nomes reservados do Windows (ex.: `CON`, `PRN`, `COM1`) são neutralizados com prefixo seguro.
+- Em colisão de nome, gera sufixo incremental automático (`_1`, `_2`, ...).
 
 ## Dependências Principais
 
@@ -179,7 +207,12 @@ Este projeto aplica diversos idioms e padrões recomendados pela comunidade Go:
 | **Error Wrapping** | `internal/writer/` | `fmt.Errorf("%w", err)` preserva contexto + identidade |
 | **Struct Tags** | `internal/models/` | Controle de serialização YAML via reflection |
 | **slog (Structured Logging)** | `internal/logger/` | Logger JSON nativo do Go 1.21+ com níveis e atributos |
-| **Goroutines + Channels** | `internal/crawler/events.go` | Comunicação assíncrona entre crawler e UI/CLI |
+| **Separation of Concerns** | `cmd/` + `internal/*` | Fronteiras claras entre entrada, interface e negócio |
+| **Use Case / Interactor** | `internal/service/scrape/` | Regra central reutilizada por CLI e GUI |
+| **go:embed** | `internal/gui/run.go` | Template HTML externo embutido no binário |
+| **Path Traversal Defense** | `internal/filesystem/` | Sanitização + basename para conter caminhos maliciosos |
+| **NTFS/EXT4 Portability** | `internal/filesystem/` | Nome de arquivo compatível em múltiplos filesystems |
+| **Goroutines + Channels** | `internal/crawler/events.go` | Comunicação assíncrona entre componentes |
 | **select non-blocking** | `internal/crawler/events.go` | `select { case ch <- v: default: }` evita deadlock |
 | **Injeção de Dependência** | todos os pacotes | Logger passado como parâmetro, não como global |
 | **internal/ packages** | todo o projeto | Pacotes não exportáveis — encapsulamento a nível de módulo |
@@ -188,11 +221,14 @@ Este projeto aplica diversos idioms e padrões recomendados pela comunidade Go:
 
 ## Estado Atual
 
-- [x] Estrutura de pacotes internos (`crawler`, `writer`, `logger`, `errors`, `models`)
+- [x] Estrutura de pacotes com SoC/Clean Architecture (`cli`, `gui`, `service`, `filesystem`, `crawler`, `writer`, `logger`, `errors`, `models`)
 - [x] Scraping assíncrono com Colly
+- [x] GUI local via navegador com template embutido (`go:embed`)
 - [x] Logger estruturado em JSON
 - [x] Saída em Markdown com YAML Front Matter
 - [x] Erros tipados e categorizados
+- [x] Nome de arquivo seguro por título com sanitização NTFS/EXT4
+- [x] Proteção contra sobrescrita com sufixo incremental
 - [ ] Conversão real de HTML para Markdown (atualmente usa texto plano)
 - [ ] Suporte a múltiplas URLs (batch)
 - [ ] Extração de tags/metadados automática

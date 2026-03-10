@@ -58,11 +58,30 @@ func SanitizeFileNameFromTitle(title string) string {
 		base = defaultBaseName
 	}
 
-	if _, reserved := windowsReservedNames[strings.ToUpper(base)]; reserved {
+	if isWindowsReservedName(base) {
 		base = "page_" + base
 	}
 
 	return base + ".md"
+}
+
+func isWindowsReservedName(base string) bool {
+	upper := strings.ToUpper(strings.TrimSpace(base))
+	if upper == "" {
+		return false
+	}
+
+	if _, reserved := windowsReservedNames[upper]; reserved {
+		return true
+	}
+
+	nameOnly := upper
+	if idx := strings.IndexRune(upper, '.'); idx > 0 {
+		nameOnly = upper[:idx]
+	}
+
+	_, reserved := windowsReservedNames[nameOnly]
+	return reserved
 }
 
 func trimRunes(s string, max int) string {

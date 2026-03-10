@@ -30,7 +30,12 @@ type pageData struct {
 func Run(outDir string, log *slog.Logger) {
 	log.Info("Modo GUI selecionado", "out_dir", outDir)
 
-	tmpl := template.Must(template.ParseFS(templateFS, "templates/index.html"))
+	tmpl, err := template.ParseFS(templateFS, "templates/index.html")
+	if err != nil {
+		log.Error("Falha ao carregar template da GUI", "error", err)
+		return
+	}
+
 	service := scrape.New(log)
 	mux := http.NewServeMux()
 

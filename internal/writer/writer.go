@@ -35,9 +35,15 @@ func SaveMarkdown(data models.PageData, outputDir string, filename string) error
 	// Caminho completo
 	filePath := filepath.Join(outputDir, filename)
 
-	// Salva no disco
-	if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
-		return fmt.Errorf("%w: %v", errors.ErrFileWriteAccess, err)
+	// Salva no disco com criação exclusiva para reduzir risco de corrida.
+	file, err := os.OpenFile(filePath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
+	if err != nil {
+		return fmt.Errorf("%w: %w", errors.ErrFileWriteAccess, err)
+	}
+	defer file.Close()
+
+	if _, err = file.Write([]byte(content)); err != nil {
+		return fmt.Errorf("%w: %w", errors.ErrFileWriteAccess, err)
 	}
 
 	return nil

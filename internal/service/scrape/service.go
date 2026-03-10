@@ -3,6 +3,7 @@ package scrape
 import (
 	"fmt"
 	"log/slog"
+	"os"
 	"path/filepath"
 
 	"github.com/chicopsych/webscrapingFLS/internal/crawler"
@@ -37,14 +38,28 @@ func (s *Service) ExecuteScrape(targetURL, outDir string) (string, error) {
 	}
 
 	safeName := filesystem.SanitizeFileNameFromTitle(pageData.Title)
-	uniqueName, err := filesystem.UniqueFileName(outDir, safeName)
-	if err != nil {
-		return "", fmt.Errorf("falha ao gerar nome de arquivo único: %w", err)
-	}
 
-	if err = writer.SaveMarkdown(pageData, outDir, uniqueName); err != nil {
+	// Mitigação prática de TOCTOU: se outra rotina criar o arquivo no meio do
+	// processo, o writer falha com EEXIST (O_EXCL) e tentamos novo sufixo.
+	const maxAttempts = 5
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		uniqueName, uniqueErr := filesystem.UniqueFileName(outDir, safeName)
+		if uniqueErr != nil {
+			return "", fmt.Errorf("falha ao gerar nome de arquivo único: %w", uniqueErr)
+		}
+
+		err = writer.SaveMarkdown(pageData, outDir, uniqueName)
+		if err == nil {
+			return filepath.Join(outDir, uniqueName), nil
+		}
+
+		if os.IsExist(err) {
+			s.logger.Warn("Colisão de nome detectada, tentando novo sufixo", "attempt", attempt, "file", uniqueName)
+			continue
+		}
+
 		return "", fmt.Errorf("falha ao salvar arquivo: %w", err)
 	}
 
-	return filepath.Join(outDir, uniqueName), nil
+	return "", fmt.Errorf("não foi possível reservar nome único após %d tentativas", maxAttempts)
 }
