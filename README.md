@@ -68,6 +68,35 @@ webscrapingFLS/
 └── README.md
 ```
 
+## Arquitetura e Fluxo de Dados
+
+O projeto segue uma arquitetura modular onde cada pacote interno tem responsabilidade única. O fluxo de dados é linear e unidirecional:
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│                        FLUXO DE DADOS                              │
+│                                                                    │
+│  ┌─────────┐     ┌───────────┐     ┌───────────┐     ┌─────────┐  │
+│  │  main   │────▶│  crawler   │────▶│ PageData  │────▶│ writer  │  │
+│  │ (flags) │     │ (Colly)    │     │ (models)  │     │ (.md)   │  │
+│  └─────────┘     └───────────┘     └───────────┘     └─────────┘  │
+│       │                │                                   │       │
+│       │           ┌────┴────┐                              │       │
+│       ▼           │ events  │                              ▼       │
+│  ┌─────────┐      │ (chan)  │                        ┌──────────┐  │
+│  │ logger  │◀─────┴────────▶│                        │ arquivo  │  │
+│  │ (slog)  │                                         │   .md    │  │
+│  └─────────┘                                         └──────────┘  │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+1. **`main.go`** — Faz parsing dos flags CLI (`-url`, `-out`, `-debug`) e orquestra o pipeline.
+2. **`logger`** — Inicializa o `slog` com handler JSON. Todos os módulos recebem o logger por injeção de dependência.
+3. **`crawler`** — Usa o Colly para fazer a requisição HTTP, parsear o DOM e popular a struct `PageData`. Emite eventos via channel para feedback de progresso.
+4. **`models`** — Define `PageData`, o contrato de dados central. Não contém lógica, apenas a estrutura.
+5. **`writer`** — Serializa `PageData` em YAML Front Matter + corpo Markdown e grava no disco.
+6. **`errors`** — Define erros sentinela do domínio, usados por todos os módulos para categorização.
+
 ## Exemplo de Saída
 
 O scraper gera um arquivo `.md` no diretório de saída com o seguinte formato:
@@ -92,25 +121,46 @@ This domain is for use in documentation examples...
 
 ## Tratamento de Erros
 
-| Erro | Situação |
-|------|----------|
-| `ErrNetworkUnreachable` | Rede inacessível ou falha de DNS |
-| `ErrRateLimited` | Limite de requisições atingido (HTTP 429) |
-| `ErrAccessDenied` | Acesso negado ou bloqueio por firewall (HTTP 401/403) |
-| `ErrSelectorNotFound` | Seletor HTML não encontrado na página |
-| `ErrInvalidMetadata` | Metadados extraídos inválidos ou incompletos |
-| `ErrFileWriteAccess` | Falha de permissão ou escrita no sistema de arquivos |
+O projeto usa o padrão **Sentinel Error** do Go: variáveis de pacote do tipo `error` declaradas com `errors.New()`. Cada sentinel carrega uma identidade única (ponteiro) que permite comparação semântica via `errors.Is()` — mesmo após wrapping com `fmt.Errorf("%w", ...)`.
+
+Esse padrão é preferido em Go ao invés de exceções (como `try/catch` em Java/Python) porque:
+- O chamador é **obrigado** a tratar o erro no fluxo de controle (não pode ignorar silenciosamente)
+- Erros são **valores comuns** que podem ser retornados, armazenados e comparados
+- A cadeia de wrapping preserva contexto sem perder a identidade do erro original
+
+| Erro | Situação | Camada |
+|------|----------|--------|
+| `ErrNetworkUnreachable` | Falha de DNS ou TCP handshake (host não respondeu ao SYN) | Rede/Transporte |
+| `ErrRateLimited` | HTTP 429 — servidor impôs limite de requisições | Aplicação (HTTP) |
+| `ErrAccessDenied` | HTTP 401 (autenticação) ou 403 (autorização/WAF) | Aplicação (HTTP) |
+| `ErrSelectorNotFound` | Seletor CSS não encontrou elementos no DOM (possível SPA) | Parsing (DOM) |
+| `ErrInvalidMetadata` | Dados insuficientes para gerar Front Matter YAML válido | Validação |
+| `ErrFileWriteAccess` | Permissão negada ou falha de I/O (POSIX 0644 / NTFS ACL) | Sistema de Arquivos |
 
 ## Contrato de Dados (PageData)
 
-A estrutura interna `PageData` usa os campos abaixo no front matter YAML:
+A estrutura interna `PageData` é o DTO (Data Transfer Object) central do projeto, definida no pacote `models`. Ela conecta o crawler (produtor) ao writer (consumidor) sem acoplamento direto.
 
-- `title`
-- `url`
-- `timestamp`
-- `tags` (opcional)
+### Campos do Front Matter YAML
 
-Para o corpo do markdown, o campo canônico é `Content`.
+| Campo | Tipo | Struct Tag | Descrição |
+|-------|------|------------|-----------|
+| `title` | `string` | `yaml:"title"` | Conteúdo da tag `<title>` do HTML |
+| `url` | `string` | `yaml:"url"` | URL completa da página extraída |
+| `timestamp` | `time.Time` | `yaml:"timestamp"` | Momento da extração (RFC 3339) |
+| `tags` | `[]string` | `yaml:"tags,omitempty"` | Categorização (omitido se vazio) |
+
+### Corpo do Markdown
+
+O campo canônico é `Content` (com struct tag `yaml:"-"` para exclusão do YAML). O conteúdo é separado do front matter pelo writer, que monta a estrutura `--- metadata --- body`.
+
+### Struct Tags e Reflection
+
+As anotações `` `yaml:"..."` `` são lidas em runtime via reflection pela biblioteca `gopkg.in/yaml.v3`. Destaques:
+- `omitempty` → campo omitido na serialização se for zero value (nil, "", 0)
+- `yaml:"-"` → campo completamente excluído da serialização
+
+### Migração Gradual (Backward Compatibility)
 
 Durante a transição, o projeto mantém compatibilidade com o campo legado `MarkdownBody`:
 
@@ -118,6 +168,23 @@ Durante a transição, o projeto mantém compatibilidade com o campo legado `Mar
 - O writer prioriza `Content`; se estiver vazio, usa fallback para `MarkdownBody`.
 
 Isso permite migração gradual sem quebrar consumidores já existentes.
+
+## Conceitos de Go Aplicados
+
+Este projeto aplica diversos idioms e padrões recomendados pela comunidade Go:
+
+| Conceito | Onde é Aplicado | Descrição |
+|----------|----------------|-----------|
+| **Sentinel Errors** | `internal/errors/` | Erros como valores comparáveis via `errors.Is()` |
+| **Error Wrapping** | `internal/writer/` | `fmt.Errorf("%w", err)` preserva contexto + identidade |
+| **Struct Tags** | `internal/models/` | Controle de serialização YAML via reflection |
+| **slog (Structured Logging)** | `internal/logger/` | Logger JSON nativo do Go 1.21+ com níveis e atributos |
+| **Goroutines + Channels** | `internal/crawler/events.go` | Comunicação assíncrona entre crawler e UI/CLI |
+| **select non-blocking** | `internal/crawler/events.go` | `select { case ch <- v: default: }` evita deadlock |
+| **Injeção de Dependência** | todos os pacotes | Logger passado como parâmetro, não como global |
+| **internal/ packages** | todo o projeto | Pacotes não exportáveis — encapsulamento a nível de módulo |
+| **Zero Values úteis** | `internal/models/` | Structs inicializadas sem construtor são seguras de usar |
+| **Async com Colly** | `internal/crawler/` | `colly.Async(true)` + `LimitRule` para paralelismo controlado |
 
 ## Estado Atual
 
