@@ -3,15 +3,11 @@ package errors
 import "errors"
 
 var (
-	// Erros Críticos (Interrompem o fluxo / demandam retry)
-	ErrNetworkUnreachable = errors.New("network unreachable: falha de DNS ou conexão TCP")
-	ErrFileWriteAccess    = errors.New("file write access: falha ao salvar arquivo .md no disco")
-
-	// Erros de Acesso/Bloqueio
-	ErrRateLimited  = errors.New("rate limited: servidor retornou HTTP 429 (Muitas requisições)")
-	ErrAccessDenied = errors.New("access denied: servidor retornou HTTP 403/401 (Possível Captcha ou sem permissão)")
-
-	// Erros de Integridade de Dados
-	ErrSelectorNotFound = errors.New("selector not found: elemento HTML (CSS/XPath) não encontrado")
-	ErrInvalidMetadata  = errors.New("invalid metadata: metadados extraídos estão incompletos ou corrompidos")
+	// Definição de erros tipados para facilitar o troubleshooting.
+	ErrNetworkUnreachable = errors.New("rede inacessível ou falha de DNS")
+	ErrRateLimited        = errors.New("limite de requisições atingido (HTTP 429)")
+	ErrAccessDenied       = errors.New("acesso negado ou bloqueio por firewall (HTTP 401/403)")
+	ErrSelectorNotFound   = errors.New("seletor HTML não encontrado na página")
+	ErrInvalidMetadata    = errors.New("metadados extraídos são inválidos ou incompletos")
+	ErrFileWriteAccess    = errors.New("falha de permissão ou escrita no sistema de arquivos")
 )

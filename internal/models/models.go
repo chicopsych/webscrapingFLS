@@ -2,13 +2,15 @@ package models
 
 import "time"
 
-// PageData representa o conteúdo extraído e estruturado
+// PageData centraliza o conteúdo e os metadados para o YAML Front Matter.
 type PageData struct {
-	Title        string    `json:"title" yaml:"title"`
-	URL          string    `json:"url" yaml:"url"`
-	Timestamp    time.Time `json:"timestamp" yaml:"timestamp"`
-	Author       string    `json:"author,omitempty" yaml:"author,omitempty"`
-	RawContent   string    `json:"-" yaml:"-"`        // HTML original ou texto limpo
-	MarkdownBody string    `json:"markdown" yaml:"-"` // Texto convertido para MD
-	Tags         []string  `json:"tags,omitempty" yaml:"tags,omitempty"`
+	Title     string    `yaml:"title"`
+	URL       string    `yaml:"url"`
+	Timestamp time.Time `yaml:"timestamp"`
+	Tags      []string  `yaml:"tags,omitempty"`
+	Content   string    `yaml:"-"` // O conteúdo não vai no YAML, mas no corpo do MD.
+
+	// Campos legados (compatibilidade temporária): manter até migrar todos os consumidores para Content.
+	RawContent   string `yaml:"-"`
+	MarkdownBody string `yaml:"-"`
 }

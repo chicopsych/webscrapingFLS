@@ -94,12 +94,30 @@ This domain is for use in documentation examples...
 
 | Erro | Situação |
 |------|----------|
-| `ErrNetworkUnreachable` | Falha de DNS ou conexão TCP |
-| `ErrRateLimited` | HTTP 429 — muitas requisições |
-| `ErrAccessDenied` | HTTP 401/403 — bloqueio ou captcha |
-| `ErrSelectorNotFound` | Elemento HTML não encontrado na página |
-| `ErrInvalidMetadata` | Metadados incompletos ou corrompidos |
-| `ErrFileWriteAccess` | Falha ao gravar o arquivo `.md` no disco |
+| `ErrNetworkUnreachable` | Rede inacessível ou falha de DNS |
+| `ErrRateLimited` | Limite de requisições atingido (HTTP 429) |
+| `ErrAccessDenied` | Acesso negado ou bloqueio por firewall (HTTP 401/403) |
+| `ErrSelectorNotFound` | Seletor HTML não encontrado na página |
+| `ErrInvalidMetadata` | Metadados extraídos inválidos ou incompletos |
+| `ErrFileWriteAccess` | Falha de permissão ou escrita no sistema de arquivos |
+
+## Contrato de Dados (PageData)
+
+A estrutura interna `PageData` usa os campos abaixo no front matter YAML:
+
+- `title`
+- `url`
+- `timestamp`
+- `tags` (opcional)
+
+Para o corpo do markdown, o campo canônico é `Content`.
+
+Durante a transição, o projeto mantém compatibilidade com o campo legado `MarkdownBody`:
+
+- O crawler preenche `Content` e também replica em `MarkdownBody`.
+- O writer prioriza `Content`; se estiver vazio, usa fallback para `MarkdownBody`.
+
+Isso permite migração gradual sem quebrar consumidores já existentes.
 
 ## Estado Atual
 

@@ -58,7 +58,8 @@ func Scrape(url string, logger *slog.Logger) (models.PageData, error) {
 		body := e.ChildText("body")
 		if body != "" {
 			pageData.RawContent = e.Text
-			pageData.MarkdownBody = strings.TrimSpace(body) // Simulação de html para md
+			pageData.Content = strings.TrimSpace(body)      // Simulação de html para md
+			pageData.MarkdownBody = pageData.Content        // Compatibilidade temporária
 		}
 	})
 

@@ -24,8 +24,13 @@ func SaveMarkdown(data models.PageData, outputDir string, filename string) error
 		return fmt.Errorf("%w: falha ao gerar front-matter YAML: %v", errors.ErrInvalidMetadata, err)
 	}
 
+	body := data.Content
+	if body == "" {
+		body = data.MarkdownBody
+	}
+
 	// Monta o conteúdo final do arquivo
-	content := fmt.Sprintf("---\n%s---\n\n%s\n", string(frontMatter), data.MarkdownBody)
+	content := fmt.Sprintf("---\n%s---\n\n%s\n", string(frontMatter), body)
 
 	// Caminho completo
 	filePath := filepath.Join(outputDir, filename)
