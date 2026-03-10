@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/chicopsych/webscrapingFLS/internal/converter"
 	"github.com/chicopsych/webscrapingFLS/internal/errors"
 	"github.com/chicopsych/webscrapingFLS/internal/models"
 
@@ -91,9 +92,21 @@ func Scrape(url string, logger *slog.Logger, events chan<- Event) (models.PageDa
 
 		body := e.ChildText("body")
 		if body != "" {
-			pageData.RawContent = e.Text
-			pageData.Content = strings.TrimSpace(body)      // Simulação de html para md
-			pageData.MarkdownBody = pageData.Content        // Compatibilidade temporária
+			// Extrai o HTML interno do <body> para conversão estruturada.
+			// e.ChildText() retorna apenas texto plano (sem tags); e.DOM.Find().Html()
+			// retorna o HTML bruto preservando headings, listas, links e código.
+			htmlContent, htmlErr := e.DOM.Find("body").Html()
+			if htmlErr == nil && strings.TrimSpace(htmlContent) != "" {
+				pageData.RawContent = strings.TrimSpace(body) // texto plano para debug
+				markdown := converter.HTMLToMarkdown(htmlContent, url)
+				pageData.Content = markdown
+				pageData.MarkdownBody = markdown // compatibilidade
+			} else {
+				// Fallback para texto plano se o DOM não estiver disponível.
+				pageData.RawContent = strings.TrimSpace(body)
+				pageData.Content = strings.TrimSpace(body)
+				pageData.MarkdownBody = pageData.Content
+			}
 		}
 	})
 

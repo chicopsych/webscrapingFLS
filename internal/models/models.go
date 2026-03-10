@@ -116,8 +116,8 @@ type PageData struct {
 	//
 	//   Example Domain...           ← Body (campo Content, excluído do YAML)
 	//
-	// Atualmente o conteúdo é texto plano (não Markdown real). A conversão HTML→Markdown
-	// está no roadmap do projeto.
+	// O conteúdo é convertido de HTML para Markdown formatado pelo pacote internal/converter,
+	// preservando headings, listas, links, código e tabelas da página original.
 	Content string `yaml:"-"`
 
 	// --- Campos Legados (Compatibilidade Temporária) ---

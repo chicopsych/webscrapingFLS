@@ -67,6 +67,8 @@ webscrapingFLS/
 ├── internal/
 │   ├── cli/
 │   │   └── run.go               # Adaptador de interface CLI
+│   ├── converter/
+│   │   └── converter.go         # Conversão HTML → Markdown (html-to-markdown v1.6)
 │   ├── crawler/
 │   │   ├── crawler.go           # Lógica de scraping com Colly
 │   │   └── events.go            # Eventos assíncronos de scraping
@@ -106,6 +108,7 @@ main (flags/logger)
 	-> cli.Run() ou gui.Run()
 	-> service/scrape.ExecuteScrape()
 	-> crawler.Scrape()
+		-> converter.HTMLToMarkdown()  ← HTML bruto → Markdown formatado
 	-> filesystem.SanitizeFileNameFromTitle()
 	-> filesystem.UniqueFileName()
 	-> writer.SaveMarkdown()
@@ -126,12 +129,18 @@ O scraper gera um arquivo `.md` no diretório de saída com o seguinte formato:
 ---
 title: Example Domain
 url: https://example.com
-timestamp: 2026-03-10T10:56:54-03:00
+timestamp: 2026-03-10T12:49:34-03:00
 ---
 
-Example Domain
-This domain is for use in documentation examples...
+# Example Domain
+
+This domain is for use in documentation examples without needing permission.
+
+[Learn more](https://iana.org/domains/example)
 ```
+
+Headings (`#`, `##`...), listas, links, negrito/itálico, código e tabelas presentes na página
+original são preservados como Markdown válido.
 
 ### Política de nome de arquivo
 
@@ -145,6 +154,7 @@ This domain is for use in documentation examples...
 | Pacote | Versão | Uso |
 |--------|--------|-----|
 | [gocolly/colly](https://github.com/gocolly/colly) | v2.3.0 | Motor de scraping HTTP/HTML |
+| [JohannesKaufmann/html-to-markdown](https://github.com/JohannesKaufmann/html-to-markdown) | v1.6.0 | Conversão HTML → Markdown formatado |
 | [gopkg.in/yaml.v3](https://pkg.go.dev/gopkg.in/yaml.v3) | v3.0.1 | Serialização do YAML Front Matter |
 
 ## Tratamento de Erros
@@ -210,6 +220,7 @@ Este projeto aplica diversos idioms e padrões recomendados pela comunidade Go:
 | **Separation of Concerns** | `cmd/` + `internal/*` | Fronteiras claras entre entrada, interface e negócio |
 | **Use Case / Interactor** | `internal/service/scrape/` | Regra central reutilizada por CLI e GUI |
 | **go:embed** | `internal/gui/run.go` | Template HTML externo embutido no binário |
+| **Adaptador de Biblioteca** | `internal/converter/` | Encapsula dependência externa com API interna limpa |
 | **Path Traversal Defense** | `internal/filesystem/` | Sanitização + basename para conter caminhos maliciosos |
 | **NTFS/EXT4 Portability** | `internal/filesystem/` | Nome de arquivo compatível em múltiplos filesystems |
 | **Goroutines + Channels** | `internal/crawler/events.go` | Comunicação assíncrona entre componentes |
@@ -229,7 +240,7 @@ Este projeto aplica diversos idioms e padrões recomendados pela comunidade Go:
 - [x] Erros tipados e categorizados
 - [x] Nome de arquivo seguro por título com sanitização NTFS/EXT4
 - [x] Proteção contra sobrescrita com sufixo incremental
-- [ ] Conversão real de HTML para Markdown (atualmente usa texto plano)
+- [x] Conversão real de HTML para Markdown (headings, listas, links, código, tabelas)
 - [ ] Suporte a múltiplas URLs (batch)
 - [ ] Extração de tags/metadados automática
 - [ ] Testes unitários
