@@ -12,9 +12,16 @@ import (
 )
 
 // Scrape executa a extração em uma dada URL e retorna a estrutura populada.
-func Scrape(url string, logger *slog.Logger) (models.PageData, error) {
+func Scrape(url string, logger *slog.Logger, events chan<- Event) (models.PageData, error) {
 	logger.Info("Iniciando requisição", "url", url)
 	start := time.Now()
+	emitEvent(events, Event{
+		Type:      EventStarted,
+		Message:   "Iniciando extração",
+		URL:       url,
+		Timestamp: time.Now(),
+		Progress:  0.05,
+	})
 
 	c := colly.NewCollector(
 		colly.Async(true),
@@ -35,13 +42,25 @@ func Scrape(url string, logger *slog.Logger) (models.PageData, error) {
 	// Tratamento de Erros de Rede/HTTP
 	c.OnError(func(r *colly.Response, err error) {
 		logger.Error("Erro na requisição", "url", r.Request.URL.String(), "status", r.StatusCode, "error", err)
+
+		var classifiedErr error
 		if r.StatusCode == 429 {
-			scrapeErr = errors.ErrRateLimited
+			classifiedErr = errors.ErrRateLimited
 		} else if r.StatusCode == 403 || r.StatusCode == 401 {
-			scrapeErr = errors.ErrAccessDenied
+			classifiedErr = errors.ErrAccessDenied
 		} else {
-			scrapeErr = errors.ErrNetworkUnreachable
+			classifiedErr = errors.ErrNetworkUnreachable
 		}
+
+		scrapeErr = classifiedErr
+		emitEvent(events, Event{
+			Type:      EventError,
+			Message:   "Erro durante a requisição",
+			URL:       r.Request.URL.String(),
+			Timestamp: time.Now(),
+			Progress:  1,
+			Err:       classifiedErr,
+		})
 	})
 
 	// Parsing do HTML
@@ -50,9 +69,24 @@ func Scrape(url string, logger *slog.Logger) (models.PageData, error) {
 		if title == "" {
 			scrapeErr = errors.ErrSelectorNotFound
 			logger.Warn("Seletor de título não encontrado", "url", e.Request.URL.String())
+			emitEvent(events, Event{
+				Type:      EventError,
+				Message:   "Seletor de título não encontrado",
+				URL:       e.Request.URL.String(),
+				Timestamp: time.Now(),
+				Progress:  1,
+				Err:       errors.ErrSelectorNotFound,
+			})
 		} else {
 			pageData.Title = strings.TrimSpace(title)
 			logger.Info("Título extraído com sucesso", "title", pageData.Title)
+			emitEvent(events, Event{
+				Type:      EventTitleExtracted,
+				Message:   "Título extraído com sucesso",
+				URL:       e.Request.URL.String(),
+				Timestamp: time.Now(),
+				Progress:  0.6,
+			})
 		}
 
 		body := e.ChildText("body")
@@ -65,11 +99,25 @@ func Scrape(url string, logger *slog.Logger) (models.PageData, error) {
 
 	c.OnRequest(func(r *colly.Request) {
 		logger.Debug("Enviando requisição", "url", r.URL.String())
+		emitEvent(events, Event{
+			Type:      EventRequestSent,
+			Message:   "Requisição enviada",
+			URL:       r.URL.String(),
+			Timestamp: time.Now(),
+			Progress:  0.2,
+		})
 	})
 
 	c.OnScraped(func(r *colly.Response) {
 		duration := time.Since(start)
 		logger.Info("Requisição finalizada", "url", r.Request.URL.String(), "duration_ms", duration.Milliseconds())
+		emitEvent(events, Event{
+			Type:      EventCompleted,
+			Message:   "Extração finalizada",
+			URL:       r.Request.URL.String(),
+			Timestamp: time.Now(),
+			Progress:  1,
+		})
 	})
 
 	c.Visit(url)
