@@ -8,6 +8,7 @@ import (
 	"github.com/chicopsych/webscrapingFLS/internal/converter"
 	"github.com/chicopsych/webscrapingFLS/internal/errors"
 	"github.com/chicopsych/webscrapingFLS/internal/models"
+	"github.com/chicopsych/webscrapingFLS/internal/sanitizer"
 
 	"github.com/gocolly/colly/v2"
 )
@@ -98,7 +99,8 @@ func Scrape(url string, logger *slog.Logger, events chan<- Event) (models.PageDa
 			htmlContent, htmlErr := e.DOM.Find("body").Html()
 			if htmlErr == nil && strings.TrimSpace(htmlContent) != "" {
 				pageData.RawContent = strings.TrimSpace(body) // texto plano para debug
-				markdown := converter.HTMLToMarkdown(htmlContent, url)
+				cleanHTML := sanitizer.ExtractMainContent(htmlContent, e.Request.URL.String())
+				markdown := converter.HTMLToMarkdown(cleanHTML, url)
 				pageData.Content = markdown
 				pageData.MarkdownBody = markdown // compatibilidade
 			} else {

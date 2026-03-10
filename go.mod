@@ -3,13 +3,13 @@ module github.com/chicopsych/webscrapingFLS
 go 1.26.1
 
 require (
+	github.com/JohannesKaufmann/html-to-markdown v1.6.0
+	github.com/PuerkitoBio/goquery v1.11.0
 	github.com/gocolly/colly/v2 v2.3.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
-	github.com/JohannesKaufmann/html-to-markdown v1.6.0 // indirect
-	github.com/PuerkitoBio/goquery v1.11.0 // indirect
 	github.com/andybalholm/cascadia v1.3.3 // indirect
 	github.com/antchfx/htmlquery v1.3.5 // indirect
 	github.com/antchfx/xmlquery v1.5.0 // indirect
