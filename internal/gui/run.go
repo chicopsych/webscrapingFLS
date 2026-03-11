@@ -17,10 +17,19 @@ import (
 //go:embed templates/index.html
 var templateFS embed.FS
 
+// scrapeResultData carrega o resultado de uma URL individual no batch da GUI.
+type scrapeResultData struct {
+	URL      string
+	FilePath string
+	Error    string
+	OK       bool
+}
+
 type pageData struct {
 	Message string
 	Error   string
 	OutDir  string
+	Results []scrapeResultData
 }
 
 // Run inicia a interface web local (GUI) e delega o caso de uso ao serviço.
@@ -58,25 +67,51 @@ func Run(outDir string, log *slog.Logger) {
 			return
 		}
 
-		targetURL := strings.TrimSpace(r.FormValue("url"))
-		if targetURL == "" {
-			http.Redirect(w, r, "/?err="+neturl.QueryEscape("Informe uma URL válida."), http.StatusSeeOther)
+		// Coletar e validar URLs do textarea (uma por linha).
+		raw := strings.TrimSpace(r.FormValue("urls"))
+		if raw == "" {
+			http.Redirect(w, r, "/?err="+neturl.QueryEscape("Informe ao menos uma URL válida."), http.StatusSeeOther)
 			return
 		}
 
-		if _, err := neturl.ParseRequestURI(targetURL); err != nil {
-			http.Redirect(w, r, "/?err="+neturl.QueryEscape("URL inválida: "+err.Error()), http.StatusSeeOther)
+		var validURLs []string
+		for _, line := range strings.Split(raw, "\n") {
+			u := strings.TrimSpace(line)
+			if u == "" || strings.HasPrefix(u, "#") {
+				continue
+			}
+			if _, err := neturl.ParseRequestURI(u); err != nil {
+				http.Redirect(w, r, "/?err="+neturl.QueryEscape("URL inválida: "+u), http.StatusSeeOther)
+				return
+			}
+			validURLs = append(validURLs, u)
+		}
+
+		if len(validURLs) == 0 {
+			http.Redirect(w, r, "/?err="+neturl.QueryEscape("Nenhuma URL válida encontrada."), http.StatusSeeOther)
 			return
 		}
 
-		filePath, err := service.ExecuteScrape(targetURL, outDir)
-		if err != nil {
-			http.Redirect(w, r, "/?err="+neturl.QueryEscape(err.Error()), http.StatusSeeOther)
-			return
+		batchResults := service.ExecuteBatch(validURLs, outDir, 3)
+
+		results := make([]scrapeResultData, len(batchResults))
+		for i, br := range batchResults {
+			rd := scrapeResultData{URL: br.URL, OK: br.Err == nil}
+			if br.Err != nil {
+				rd.Error = br.Err.Error()
+			} else {
+				rd.FilePath = br.FilePath
+				log.Info("Arquivo salvo via GUI", "path", br.FilePath)
+			}
+			results[i] = rd
 		}
 
-		log.Info("Arquivo salvo via GUI", "path", filePath)
-		http.Redirect(w, r, "/?msg="+neturl.QueryEscape("Extração concluída. Arquivo salvo em: "+filePath), http.StatusSeeOther)
+		// Renderizar diretamente (sem redirect) para exibir resultados estruturados.
+		data := pageData{OutDir: outDir, Results: results}
+		if err := tmpl.Execute(w, data); err != nil {
+			log.Error("Falha ao renderizar template da GUI", "error", err)
+			http.Error(w, "erro interno ao renderizar página", http.StatusInternalServerError)
+		}
 	})
 
 	ln, err := net.Listen("tcp", "127.0.0.1:0")

@@ -5,11 +5,19 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"github.com/chicopsych/webscrapingFLS/internal/crawler"
 	"github.com/chicopsych/webscrapingFLS/internal/filesystem"
 	"github.com/chicopsych/webscrapingFLS/internal/writer"
 )
+
+// BatchResult carrega o resultado individual de cada URL processada em lote.
+type BatchResult struct {
+	URL      string
+	FilePath string
+	Err      error
+}
 
 // Service implementa o caso de uso ExecuteScrape.
 //
@@ -62,4 +70,33 @@ func (s *Service) ExecuteScrape(targetURL, outDir string) (string, error) {
 	}
 
 	return "", fmt.Errorf("não foi possível reservar nome único após %d tentativas", maxAttempts)
+}
+
+// ExecuteBatch executa scraping para uma lista de URLs de forma concorrente.
+// parallelism define o número máximo de extrações simultâneas (mínimo 1).
+// Todos os resultados são retornados na mesma ordem das URLs de entrada,
+// incluindo os que falharam — o chamador deve verificar BatchResult.Err.
+func (s *Service) ExecuteBatch(urls []string, outDir string, parallelism int) []BatchResult {
+	if parallelism <= 0 {
+		parallelism = 1
+	}
+
+	results := make([]BatchResult, len(urls))
+	sem := make(chan struct{}, parallelism)
+	var wg sync.WaitGroup
+
+	for i, u := range urls {
+		wg.Add(1)
+		go func(idx int, targetURL string) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			fp, err := s.ExecuteScrape(targetURL, outDir)
+			results[idx] = BatchResult{URL: targetURL, FilePath: fp, Err: err}
+		}(i, u)
+	}
+
+	wg.Wait()
+	return results
 }

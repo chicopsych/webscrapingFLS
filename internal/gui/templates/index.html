@@ -10,11 +10,16 @@
     .muted { color: #555; margin-top: 0; }
     .box { border: 1px solid #ddd; border-radius: 8px; padding: 16px; background: #fafafa; }
     label { display: block; margin-bottom: 8px; font-weight: 600; }
-    input[type="url"] { width: 100%; padding: 10px; font-size: 14px; border-radius: 6px; border: 1px solid #bbb; box-sizing: border-box; }
+    textarea { width: 100%; padding: 10px; font-size: 14px; border-radius: 6px; border: 1px solid #bbb; box-sizing: border-box; font-family: monospace; resize: vertical; }
     button { margin-top: 12px; background: #1463ff; color: white; border: 0; border-radius: 6px; padding: 10px 14px; cursor: pointer; }
-    .ok { margin-top: 14px; color: #0c6b2f; font-weight: 600; }
-    .err { margin-top: 14px; color: #9a1c1c; font-weight: 600; }
+    .ok  { color: #0c6b2f; font-weight: 600; }
+    .err { color: #9a1c1c; font-weight: 600; }
     code { background: #f2f2f2; padding: 2px 4px; border-radius: 4px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 13px; }
+    th { text-align: left; background: #f0f0f0; padding: 8px 10px; border: 1px solid #ddd; }
+    td { padding: 7px 10px; border: 1px solid #ddd; word-break: break-all; }
+    tr.row-ok  td:first-child { border-left: 4px solid #2da44e; }
+    tr.row-err td:first-child { border-left: 4px solid #cf222e; }
   </style>
 </head>
 <body>
@@ -22,13 +27,28 @@
   <p class="muted">Interface GUI local para extração de páginas.</p>
   <div class="box">
     <form method="post" action="/scrape">
-      <label for="url">URL alvo</label>
-      <input id="url" name="url" type="url" placeholder="https://example.com" required />
+      <label for="urls">URLs alvo <span class="muted" style="font-weight:normal">(uma por linha)</span></label>
+      <textarea id="urls" name="urls" rows="5" placeholder="https://example.com&#10;https://go.dev&#10;https://outro-site.com.br" required></textarea>
       <button type="submit">Extrair e salvar</button>
     </form>
-    {{if .Message}}<div class="ok">{{.Message}}</div>{{end}}
-    {{if .Error}}<div class="err">{{.Error}}</div>{{end}}
-    <p class="muted">Saída: <code>{{.OutDir}}/&lt;titulo_da_pagina&gt;.md</code></p>
+    {{if .Error}}<p class="err" style="margin-top:14px">{{.Error}}</p>{{end}}
+    {{if .Results}}
+    <table>
+      <thead><tr><th>URL</th><th>Resultado</th></tr></thead>
+      <tbody>
+        {{range .Results}}
+        <tr class="{{if .OK}}row-ok{{else}}row-err{{end}}">
+          <td><code>{{.URL}}</code></td>
+          <td>
+            {{if .OK}}<span class="ok">✓ Salvo em <code>{{.FilePath}}</code></span>
+            {{else}}<span class="err">✗ {{.Error}}</span>{{end}}
+          </td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+    {{end}}
+    <p class="muted" style="margin-top:14px">Saída: <code>{{.OutDir}}/&lt;titulo_da_pagina&gt;.md</code></p>
   </div>
 </body>
 </html>

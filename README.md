@@ -5,7 +5,8 @@ Web scraper em Go para extração de conteúdo de páginas web, com saída em Ma
 ## Funcionalidades
 
 - Extração de título e conteúdo de qualquer URL via linha de comando
-- Interface GUI local (web) iniciada com `-gui` ou sem argumentos
+- Suporte a múltiplas URLs em batch (`-urls`, `-urls-file`) com execução concorrente
+- Interface GUI local (web) iniciada com `-gui` ou sem argumentos; aceita múltiplas URLs
 - Saída em arquivo `.md` com YAML Front Matter (título, URL, timestamp, tags)
 - Nome de arquivo baseado no título da página com sanitização cross-platform
 - Proteção contra sobrescrita com sufixo incremental automático (`_1`, `_2`, ...)
@@ -31,8 +32,14 @@ go mod download
 # Compilar
 go build -o webscrapingfls ./cmd/scraper
 
-# Modo CLI
+# Modo CLI — URL única
 ./webscrapingfls -url https://example.com
+
+# Modo CLI — múltiplas URLs (batch, separadas por vírgula)
+./webscrapingfls -urls "https://example.com,https://go.dev,https://outro.com"
+
+# Modo CLI — arquivo de URLs (uma por linha; linhas com # são ignoradas)
+./webscrapingfls -urls-file urls.txt
 
 # Com opções adicionais
 ./webscrapingfls -url https://example.com -out ./resultados -debug
@@ -45,17 +52,21 @@ No Windows (PowerShell), o equivalente é:
 
 ```powershell
 .\webscrapingfls.exe -url https://example.com -out .\data
+.\webscrapingfls.exe -urls "https://example.com,https://go.dev"
+.\webscrapingfls.exe -urls-file .\urls.txt
 .\webscrapingfls.exe -gui
 ```
 
 ### Flags disponíveis
 
-| Flag      | Padrão  | Descrição                                    |
-|-----------|---------|----------------------------------------------|
-| `-url`    | (vazio) | URL alvo para o scraping (modo CLI)          |
-| `-out`    | `data`  | Diretório de saída para os arquivos `.md`    |
-| `-debug`  | `false` | Habilita log em nível debug                  |
-| `-gui`    | `false` | Inicia interface GUI local (web)             |
+| Flag          | Padrão  | Descrição                                                    |
+|---------------|---------|--------------------------------------------------------------|
+| `-url`        | (vazio) | URL única para scraping (modo CLI)                           |
+| `-urls`       | (vazio) | URLs separadas por vírgula para batch (modo CLI)             |
+| `-urls-file`  | (vazio) | Arquivo com uma URL por linha para batch (modo CLI)          |
+| `-out`        | `data`  | Diretório de saída para os arquivos `.md`                    |
+| `-debug`      | `false` | Habilita log em nível debug                                  |
+| `-gui`        | `false` | Inicia interface GUI local (web)                             |
 
 ## Estrutura do Projeto
 
@@ -241,7 +252,8 @@ Este projeto aplica diversos idioms e padrões recomendados pela comunidade Go:
 - [x] Nome de arquivo seguro por título com sanitização NTFS/EXT4
 - [x] Proteção contra sobrescrita com sufixo incremental
 - [x] Conversão real de HTML para Markdown (headings, listas, links, código, tabelas)
-- [ ] Suporte a múltiplas URLs (batch)
+- [x] Sanitização HTML (extração de conteúdo principal; remoção de anúncios, menus e imagens)
+- [x] Suporte a múltiplas URLs (batch)
 - [ ] Extração de tags/metadados automática
 - [ ] Testes unitários
 
