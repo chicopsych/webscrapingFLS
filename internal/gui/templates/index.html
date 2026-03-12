@@ -14,7 +14,9 @@
     button { margin-top: 12px; background: #1463ff; color: white; border: 0; border-radius: 6px; padding: 10px 14px; cursor: pointer; }
     .ok  { color: #0c6b2f; font-weight: 600; }
     .err { color: #9a1c1c; font-weight: 600; }
+    .muted-normal { font-weight: normal; }
     code { background: #f2f2f2; padding: 2px 4px; border-radius: 4px; }
+    .margin-top-14 { margin-top: 14px; }
     table { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 13px; }
     th { text-align: left; background: #f0f0f0; padding: 8px 10px; border: 1px solid #ddd; }
     td { padding: 7px 10px; border: 1px solid #ddd; word-break: break-all; }
@@ -27,11 +29,11 @@
   <p class="muted">Interface GUI local para extração de páginas.</p>
   <div class="box">
     <form method="post" action="/scrape">
-      <label for="urls">URLs alvo <span class="muted" style="font-weight:normal">(uma por linha)</span></label>
+      <label for="urls">URLs alvo <span class="muted muted-normal">(uma por linha)</span></label>
       <textarea id="urls" name="urls" rows="5" placeholder="https://example.com&#10;https://go.dev&#10;https://outro-site.com.br" required></textarea>
       <button type="submit">Extrair e salvar</button>
     </form>
-    {{if .Error}}<p class="err" style="margin-top:14px">{{.Error}}</p>{{end}}
+    {{if .Error}}<p class="err margin-top-14">{{.Error}}</p>{{end}}
     {{if .Results}}
     <table>
       <thead><tr><th>URL</th><th>Resultado</th></tr></thead>
@@ -48,7 +50,7 @@
       </tbody>
     </table>
     {{end}}
-    <p class="muted" style="margin-top:14px">Saída: <code>{{.OutDir}}/&lt;titulo_da_pagina&gt;.md</code></p>
+    <p class="muted margin-top-14">Saída: <code>{{.OutDir}}/&lt;titulo_da_pagina&gt;.md</code></p>
   </div>
 </body>
 </html>
